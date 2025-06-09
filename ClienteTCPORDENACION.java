@@ -1,18 +1,17 @@
-//ClienteTCPORDENACION
 import java.io.*;
 import java.net.*;
 import java.util.Random;
 
 public class ClienteTCPORDENACION {
     public static void main(String[] args) {
-        if (args.length != 3) {
-            System.out.println("Uso: java ClienteTCP <puerto-servidor> <puerto-local> <cantidad-elementos>");
+        if (args.length < 2) {
+            System.out.println("Uso: java ClienteTCP <puerto_inicial> <cantidad_numeros>");
             return;
         }
-
-        int puertoServidor = Integer.parseInt(args[0]);
-        int puertoLocal = Integer.parseInt(args[1]);
-        int cantidad = Integer.parseInt(args[2]);
+        
+        int puertoInicial = Integer.parseInt(args[0]);
+        int cantidad = Integer.parseInt(args[1]);
+        
         
         // Validar cantidad
         if (cantidad < 15 || cantidad > 30) {
@@ -21,16 +20,14 @@ public class ClienteTCPORDENACION {
         }
         
         Socket socket = null;
-        int puertoActual = puertoLocal;
+        int puertoActual = puertoInicial;
         
-        // Buscar puerto local libre
+        // Buscar puerto libre
         while (socket == null) {
             try {
-                // Intentar crear socket vinculado al puerto local
                 socket = new Socket();
-                socket.bind(new InetSocketAddress("localhost", puertoActual));
-                System.out.println("Puerto " + puertoActual + " libre.");
-                System.out.println("Creando socket en el puerto " + puertoActual + "...");
+                socket.bind(new InetSocketAddress(puertoActual));
+                System.out.println("Puerto " + puertoActual + " libre. Creando socket...");
             } catch (IOException e) {
                 System.out.println("Puerto " + puertoActual + " ocupado, seleccionando siguiente puerto libre...");
                 puertoActual++;
@@ -39,26 +36,24 @@ public class ClienteTCPORDENACION {
         
         System.out.println("Cliente arrancado por puerto " + puertoActual + ".");
         
+        // Generar números aleatorios
+        int[] numeros = new int[cantidad];
+        Random rand = new Random();
+        for (int i = 0; i < cantidad; i++) {
+            numeros[i] = rand.nextInt(500); // Números entre 0-499
+        }
+        
+        // Mostrar array generado
+        System.out.print("Array generado: ");
+        for (int i = 0; i < numeros.length; i++) {
+            System.out.print(numeros[i]);
+            if (i < numeros.length - 1) System.out.print(",");
+        }
+        System.out.println();
+        
         try {
             // Conectar al servidor
-            socket.connect(new InetSocketAddress("localhost", puertoServidor));
-            System.out.println("Conectado al servidor en puerto " + puertoServidor);
-            
-            // Obtener streams de entrada/salida
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            
-            // Generar números aleatorios
-            System.out.println("Generando array de " + cantidad + " elementos aleatorios...");
-            int[] numeros = generarNumerosAleatorios(cantidad);
-            
-            // Mostrar array generado
-            System.out.print("Array generado: ");
-            for (int i = 0; i < numeros.length; i++) {
-                System.out.print(numeros[i]);
-                if (i < numeros.length - 1) System.out.print(",");
-            }
-            System.out.println();
+            socket.connect(new InetSocketAddress("localhost", 50000));
             
             // Construir mensaje
             StringBuilder mensaje = new StringBuilder("#");
@@ -68,20 +63,23 @@ public class ClienteTCPORDENACION {
             }
             mensaje.append("#");
             
-            // Enviar al servidor
+            // Enviar datos
+            DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
             System.out.println("Enviando datos...");
-            out.println(mensaje.toString());
+            dos.writeUTF(mensaje.toString());
             
             // Recibir respuesta
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
             System.out.println("Esperando respuesta del servidor...");
-            String respuesta = in.readLine();
-            System.out.println("Respuesta recibida. Array ordenado:");
+            String respuesta = dis.readUTF();
             
-            if (respuesta != null && respuesta.startsWith("#") && respuesta.endsWith("#")) {
+            // Procesar respuesta
+            System.out.println("Datos recibidos.");
+            if (respuesta.startsWith("#") && respuesta.endsWith("#")) {
                 String numerosOrdenados = respuesta.substring(1, respuesta.length() - 1);
-                System.out.println(numerosOrdenados);
+                System.out.println("Array ordenado: " + numerosOrdenados);
             } else {
-                System.out.println("Respuesta inválida: " + respuesta);
+                System.out.println("Respuesta en formato incorrecto: " + respuesta);
             }
             
         } catch (IOException e) {
@@ -93,16 +91,5 @@ public class ClienteTCPORDENACION {
                 e.printStackTrace();
             }
         }
-    }
-    
-    private static int[] generarNumerosAleatorios(int cantidad) {
-        int[] numeros = new int[cantidad];
-        Random rand = new Random();
-        
-        for (int i = 0; i < cantidad; i++) {
-            numeros[i] = rand.nextInt(500);  // Números entre 0-499
-        }
-        
-        return numeros;
     }
 }

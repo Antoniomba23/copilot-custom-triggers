@@ -1,66 +1,82 @@
-//ClienteUDPFICHERO
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
+import java.util.Arrays;
 import java.awt.Desktop;
 
 public class ClienteUDPFICHERO {
-    public static void main(String[] args) throws IOException {
-        if (args.length != 3) {
-            System.out.println("Uso: java ClienteUDP <puerto-local> <puerto-servidor> <archivo>");
+    public static void main(String[] args) {
+        if (args.length < 2) {
+            System.out.println("Uso: java ClienteUDP <puerto> <archivoPDF>");
             return;
         }
-
-        int puertoLocal = Integer.parseInt(args[0]);
-        int puertoServidor = Integer.parseInt(args[1]);
-        String archivo = args[2];
+        
+        int puerto = Integer.parseInt(args[0]);
+        String nombreArchivo = args[1];
         DatagramSocket socket = null;
 
-        // Verificar puerto local
+        // Verificar y esperar si el puerto está ocupado
         while (socket == null) {
             try {
-                socket = new DatagramSocket(puertoLocal);
-                System.out.println("Socket UDP creado en puerto " + puertoLocal);
+                socket = new DatagramSocket(puerto);
+                System.out.println("Puerto " + puerto + " libre. Creando socket en el puerto " + puerto + "...");
             } catch (SocketException e) {
-                System.out.println("Puerto ocupado, esperando...");
-                try { Thread.sleep(1000); } 
-                catch (InterruptedException ex) { /* Ignorar */ }
+                System.out.println("Puerto " + puerto + " ocupado...");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
             }
         }
 
-        // Leer archivo PDF
-        File file = new File(archivo);
-        FileInputStream fis = new FileInputStream(file);
-        byte[] fileData = fis.readAllBytes();
-        fis.close();
+        System.out.println("Cliente arrancado en el puerto " + puerto + ".");
         
-        // Enviar al servidor
-        InetAddress direccion = InetAddress.getByName("localhost");
-        DatagramPacket paquete = new DatagramPacket(
-            fileData, 
-            fileData.length, 
-            direccion, 
-            puertoServidor
-        );
-        
-        socket.send(paquete);
-        System.out.println("PDF enviado (" + fileData.length + " bytes)");
-
-        // Recibir respuesta
-        byte[] buffer = new byte[65507];
-        DatagramPacket respuesta = new DatagramPacket(buffer, buffer.length);
-        socket.receive(respuesta);
-        
-        // Guardar archivo
-        FileOutputStream fos = new FileOutputStream("OriginalProcesado.pdf");
-        fos.write(respuesta.getData(), 0, respuesta.getLength());
-        fos.close();
-        System.out.println("PDF recibido (" + respuesta.getLength() + " bytes)");
-        
-        // Abrir para verificación
-        File pdfFile = new File("OriginalProcesado.pdf");
-        if (Desktop.isDesktopSupported()) {
-            Desktop.getDesktop().open(pdfFile);
+        try {
+            // Leer archivo PDF
+            File archivo = new File(nombreArchivo);
+            byte[] fileContent = Files.readAllBytes(archivo.toPath());
+            
+            // Preparar datagrama para servidor
+            InetAddress direccionServidor = InetAddress.getByName("localhost");
+            System.out.println("Enviando datagrama al servidor por el puerto 50000...");
+            DatagramPacket paqueteEnvio = new DatagramPacket(
+                fileContent,
+                fileContent.length,
+                direccionServidor,
+                50000
+            );
+            socket.send(paqueteEnvio);
+            System.out.println("Fichero PDF enviado correctamente.");
+            
+            // Recibir respuesta
+            System.out.println("Esperando datagrama fichero del servidor...");
+            byte[] buffer = new byte[65507];
+            DatagramPacket paqueteRespuesta = new DatagramPacket(buffer, buffer.length);
+            socket.receive(paqueteRespuesta);
+            
+            // Guardar archivo procesado
+            String nuevoNombre = "OriginalProcesado.pdf";
+            Files.write(Paths.get(nuevoNombre), 
+                      Arrays.copyOf(paqueteRespuesta.getData(), paqueteRespuesta.getLength()));
+            
+            System.out.println("Fichero PDF recibido.");
+            System.out.println("Guardando como \"" + nuevoNombre + "\"...");
+            
+            // Verificar apertura del archivo
+            File archivoRecibido = new File(nuevoNombre);
+            if (Desktop.isDesktopSupported()) {
+                System.out.println("Abriendo fichero para verificación...");
+                Desktop.getDesktop().open(archivoRecibido);
+                System.out.println("(Fichero abierto correctamente.)");
+            } else {
+                System.out.println("No se puede abrir el archivo automáticamente.");
+            }
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (socket != null) socket.close();
         }
-        socket.close();
     }
 }
